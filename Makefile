@@ -1,5 +1,5 @@
 
-TARGET = libtextcursorchanger.so
+TARGET = libXtextcursorchanger.so
 
 CC = gcc
 CFLAGS = -O2 -fPIC -shared -Wl,-soname,$(TARGET)

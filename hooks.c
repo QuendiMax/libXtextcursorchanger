@@ -2,12 +2,13 @@
 
 #include <dlfcn.h>
 #include <stdio.h>
+#include <string.h>
 #include <X11/Xlib.h>
 #include <X11/cursorfont.h>
 #include <X11/Xlibint.h>
 
-static int isXTermCursor = 0;
 
+static const char *CursorPath = "/home/quendi/Develop/Workspace/libXtextcursorchanger/cursors/en";
 
 static Cursor (*realXCreateFontCursor)(Display *, unsigned int);
 
@@ -19,7 +20,7 @@ Cursor XCreateFontCursor(Display *dpy, unsigned int shape)
 	Cursor cursor;
 
 	if (shape == XC_xterm) {
-		return XcursorFilenameLoadCursor(dpy, "/home/quendi/default"); 
+		cursor = XcursorFilenameLoadCursor(dpy, CursorPath);
 	}
 	else {
 		if (!realXCreateFontCursor)
