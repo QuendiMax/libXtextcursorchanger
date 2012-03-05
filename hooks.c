@@ -7,10 +7,26 @@
 #include <X11/cursorfont.h>
 #include <X11/Xlibint.h>
 
+/*#define X_NEXT_EVENT */
 
-static const char *CursorPath = "/home/quendi/Develop/Workspace/libXtextcursorchanger/cursors/en";
 
+static Cursor xtermCursor;
+static const char *CursorPath = "/home/quendi/Develop/Workspace/libXtextcursorchanger/cursors/by.xcursor";
+
+static Display *(*realXOpenDisplay)(_Xconst char *);
 static Cursor (*realXCreateFontCursor)(Display *, unsigned int);
+static int (*realXNextEvent)(Display *, XEvent *);
+static int (*realXDefineCursor)(Display *dpy, Window win, Cursor cur);
+
+
+Display *XOpenDisplay(_Xconst char *displayName)
+{
+	printf("XOpenDisplay\n");
+	if (!realXOpenDisplay)
+		realXOpenDisplay = dlsym(RTLD_NEXT, "XOpenDisplay");
+
+	return realXOpenDisplay(displayName);
+}
 
 
 Cursor XCreateFontCursor(Display *dpy, unsigned int shape)
@@ -20,7 +36,8 @@ Cursor XCreateFontCursor(Display *dpy, unsigned int shape)
 	Cursor cursor;
 
 	if (shape == XC_xterm) {
-		cursor = XcursorFilenameLoadCursor(dpy, CursorPath);
+		xtermCursor = cursor = XcursorFilenameLoadCursor(dpy, CursorPath);
+		printf("New cursor XID: %ld\n", cursor);
 	}
 	else {
 		if (!realXCreateFontCursor)
@@ -32,6 +49,35 @@ Cursor XCreateFontCursor(Display *dpy, unsigned int shape)
 }
 
 
+int XDefineCursor(Display *dpy, Window win, Cursor cur)
+{
+	printf("New cursor XID: %ld\n", cur);
+	if (!realXDefineCursor)
+		realXDefineCursor = dlsym(RTLD_NEXT, "XDefineCursor");
+
+	return realXDefineCursor(dpy, win, cur);
+}
+
+
+#ifdef X_NEXT_EVENT
+int XNextEvent(Display *dpy, XEvent *event)
+{
+	//ShowEvent(event->type);
+	int eventType = event->type;
+
+	if (!realXNextEvent)
+		realXNextEvent = dlsym(RTLD_NEXT, "XNextEvent");
+
+	int result = realXNextEvent(dpy, event);
+
+	if (eventType == GenericEvent) {
+		printf("The layout changed\n");
+		XDefineCursor(dpy, RootWindow(dpy, DefaultScreen(dpy)), xtermCursor);
+		XSync(dpy, False);
+	}
+
+	return result;
+}
 
 
 void ShowEvent(int type)
@@ -139,38 +185,5 @@ void ShowEvent(int type)
 	}
 	printf("Event type: %d - %s\n", type, strType);
 }
-
-
-static int (*realXNextEvent)(Display *, XEvent *);
-
-
-int XNextEvent(Display *dpy, XEvent *event)
-{
-//	ShowEvent(event->type);
-	if (event->type > 36) {
-//		printf("Unknown Event\n");
-	}
-
-	if (!realXNextEvent)
-		realXNextEvent = dlsym(RTLD_NEXT, "XNextEvent");
-
-	return realXNextEvent(dpy, event);
-}
-
-
-
-
-
-
-static int (*realXDefineCursor)(Display *dpy, Window win, Cursor cur);
-
-
-int XDefineCursor(Display *dpy, Window win, Cursor cur)
-{
-	printf("New cursor XID: %ld\n", cur);
-	if (!realXDefineCursor)
-		realXDefineCursor = dlsym(RTLD_NEXT, "XDefineCursor");
-
-	return realXDefineCursor(dpy, win, cur);
-}
+#endif
 
