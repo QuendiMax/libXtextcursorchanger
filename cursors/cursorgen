@@ -1,0 +1,13 @@
+#!/bin/sh
+
+cursorFiles=`ls *.cursor`
+
+for file in $cursorFiles
+do
+	layout=`echo $file | cut -d. -f1`
+	if xcursorgen $layout.cursor $layout.xcursor
+	then
+		echo $layout cursor has created.
+	fi	
+done
+
