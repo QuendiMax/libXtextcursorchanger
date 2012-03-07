@@ -4,54 +4,59 @@
 #include <stdio.h>
 #include <string.h>
 #include <X11/Xlib.h>
+#include <X11/Xcursor/Xcursor.h>
 #include <X11/cursorfont.h>
 #include <X11/Xlibint.h>
+#include <X11/XKBlib.h>
+#include <xcb/xcb.h>
 
-/*#define X_NEXT_EVENT */
+#include "layout.h"
 
 
-static Cursor xtermCursor;
-static const char *CursorPath = "/home/quendi/Develop/Workspace/libXtextcursorchanger/cursors/by.xcursor";
-
-static Display *(*realXOpenDisplay)(_Xconst char *);
+static int (*realXCloseDisplay)(Display *);
 static Cursor (*realXCreateFontCursor)(Display *, unsigned int);
 static int (*realXNextEvent)(Display *, XEvent *);
 static int (*realXDefineCursor)(Display *dpy, Window win, Cursor cur);
 
+static Cursor s_std_xterm_cursor;
 
-Display *XOpenDisplay(_Xconst char *displayName)
+
+int XCloseDisplay(Display *dpy)
 {
-	printf("XOpenDisplay\n");
-	if (!realXOpenDisplay)
-		realXOpenDisplay = dlsym(RTLD_NEXT, "XOpenDisplay");
+	destroy_layouts();
 
-	return realXOpenDisplay(displayName);
+	if (!realXCloseDisplay)
+		realXCloseDisplay = dlsym(RTLD_NEXT, "XCloseDisplay");
+
+	return realXCloseDisplay(dpy);
 }
 
 
+/*
+ Here we need to remember XID of xterm cursors to change them to our cursors.
+ */
 Cursor XCreateFontCursor(Display *dpy, unsigned int shape)
 {
-	printf("Replace: %s, shape: %d\n", __func__, shape);
-
-	Cursor cursor;
-
 	if (shape == XC_xterm) {
-		xtermCursor = cursor = XcursorFilenameLoadCursor(dpy, CursorPath);
-		printf("New cursor XID: %ld\n", cursor);
-	}
-	else {
-		if (!realXCreateFontCursor)
-			realXCreateFontCursor = dlsym(RTLD_NEXT, "XCreateFontCursor");
-		cursor = realXCreateFontCursor(dpy, shape);
+		static int is_first_start = True;
+		if (is_first_start) {
+			init_layouts(dpy);
+			is_first_start = False;
+		}
 	}
 
-	return cursor;
+	if (!realXCreateFontCursor)
+		realXCreateFontCursor = dlsym(RTLD_NEXT, "XCreateFontCursor");
+
+	return realXCreateFontCursor(dpy, shape);
 }
 
 
+/*
+ Here we change the xterm cursors to our cursors.
+ */
 int XDefineCursor(Display *dpy, Window win, Cursor cur)
 {
-	printf("New cursor XID: %ld\n", cur);
 	if (!realXDefineCursor)
 		realXDefineCursor = dlsym(RTLD_NEXT, "XDefineCursor");
 
@@ -59,10 +64,8 @@ int XDefineCursor(Display *dpy, Window win, Cursor cur)
 }
 
 
-#ifdef X_NEXT_EVENT
 int XNextEvent(Display *dpy, XEvent *event)
 {
-	//ShowEvent(event->type);
 	int eventType = event->type;
 
 	if (!realXNextEvent)
@@ -71,15 +74,19 @@ int XNextEvent(Display *dpy, XEvent *event)
 	int result = realXNextEvent(dpy, event);
 
 	if (eventType == GenericEvent) {
-		printf("The layout changed\n");
-		XDefineCursor(dpy, RootWindow(dpy, DefaultScreen(dpy)), xtermCursor);
-		XSync(dpy, False);
+		XkbEvent *ev = (XkbEvent *) event;
+		if (ev->any.xkb_type == XkbStateNotify) {
+			printf("The layout was changed\n");
+			//XDefineCursor(dpy, DefaultRootWindow(dpy), xtermCursor);
+			//XSync(dpy, False);
+		}
 	}
 
 	return result;
 }
 
 
+#if 0
 void ShowEvent(int type)
 {
 	const char *strType;
