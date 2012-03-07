@@ -20,7 +20,7 @@ $(TARGET): $(SOURCES)
 
 
 install:
-	mkdir ~/.cache/libXtextcursorchanger
+	mkdir -p ~/.cache/libXtextcursorchanger
 	cd cursors && cp *.xcursor ~/.cache/libXtextcursorchanger/
 
 
