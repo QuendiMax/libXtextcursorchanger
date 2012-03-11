@@ -37,7 +37,14 @@ int XCloseDisplay(Display *dpy)
  */
 Cursor XCreateFontCursor(Display *dpy, unsigned int shape)
 {
+	if (!realXCreateFontCursor)
+		realXCreateFontCursor = dlsym(RTLD_NEXT, "XCreateFontCursor");
+
+	Cursor cursor = realXCreateFontCursor(dpy, shape);
+
 	if (shape == XC_xterm) {
+		s_std_xterm_cursor = cursor;
+
 		static int is_first_start = True;
 		if (is_first_start) {
 			init_layouts(dpy);
@@ -45,10 +52,7 @@ Cursor XCreateFontCursor(Display *dpy, unsigned int shape)
 		}
 	}
 
-	if (!realXCreateFontCursor)
-		realXCreateFontCursor = dlsym(RTLD_NEXT, "XCreateFontCursor");
-
-	return realXCreateFontCursor(dpy, shape);
+	return cursor;
 }
 
 
@@ -59,6 +63,11 @@ int XDefineCursor(Display *dpy, Window win, Cursor cur)
 {
 	if (!realXDefineCursor)
 		realXDefineCursor = dlsym(RTLD_NEXT, "XDefineCursor");
+
+	if (cur == s_std_xterm_cursor) {
+		const layout_t *cur_layout = current_layout(dpy);
+		cur = cur_layout->cursor;
+	}
 
 	return realXDefineCursor(dpy, win, cur);
 }
@@ -77,8 +86,8 @@ int XNextEvent(Display *dpy, XEvent *event)
 		XkbEvent *ev = (XkbEvent *) event;
 		if (ev->any.xkb_type == XkbStateNotify) {
 			printf("The layout was changed\n");
-			//XDefineCursor(dpy, DefaultRootWindow(dpy), xtermCursor);
-			//XSync(dpy, False);
+			XDefineCursor(dpy, DefaultRootWindow(dpy), s_std_xterm_cursor);
+			XSync(dpy, False);
 		}
 	}
 
